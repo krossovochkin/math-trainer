@@ -3,46 +3,110 @@ package com.krossovochkin.common
 import kotlin.random.Random
 import kotlin.random.nextInt
 
+private val operationEncondings = listOf(
+    "■",
+    "□",
+    "▣",
+    "▨",
+    "▲",
+    "△",
+    "▶",
+    "▷",
+    "◆",
+    "◇",
+    "◉",
+    "○",
+    "●",
+    "◐",
+    "◢",
+    "◧",
+    "★",
+    "☆",
+    "☀",
+    "☁",
+    "☒",
+    "☢",
+    "☺",
+    "☾",
+    "♫",
+    "♯",
+    "⚑",
+)
+
+interface TrainingResult {
+    val result: String
+}
+
+interface Training {
+    val nextProblem: Problem?
+    val trainingResult: TrainingResult
+}
+
+class InfiniteTraining(
+    private val generator: ProblemGenerator,
+) : Training {
+
+    override val nextProblem: Problem
+        get() = generator.generate()
+
+    override val trainingResult: TrainingResult
+        get() = object : TrainingResult {
+            override val result: String = ""
+        }
+}
+
+class SimpleTraining(
+    private val generator: ProblemGenerator,
+    private val count: Int,
+) : Training {
+
+    private var currentCount: Int = 0
+    private val startTimestamp = System.currentTimeMillis()
+
+    override val nextProblem: Problem?
+        get() {
+            currentCount++
+            return if (currentCount <= count) {
+                generator.generate()
+            } else {
+                null
+            }
+        }
+
+    override val trainingResult: TrainingResult
+        get() {
+            return object : TrainingResult {
+                override val result: String
+                    get() {
+                        val timeSeconds = (System.currentTimeMillis() - startTimestamp) / 1000
+                        return "Solved in ${timeSeconds}s"
+                    }
+            }
+        }
+}
+
 interface Problem {
     val text: String
     val result: Int
+    val operationEnconding: Map<Operation, String>
 }
 
-enum class ProblemType {
-    Simple,
-    Complex,
+interface ProblemGenerator {
+
+    fun generate(): Problem
 }
 
-data class SimpleProblem(
-    val first: Int,
-    val second: Int,
-    val operation: Operation,
-    override val result: Int,
-) : Problem {
+class SimpleProblemGenerator(
+    isOperatorsEncoded: Boolean
+) : ProblemGenerator {
 
-    override val text: String = "$first ${operation.value} $second = "
-}
+    private val operationEncoding = if (isOperatorsEncoded) {
+        Operation.values().zip(operationEncondings.shuffled()).toMap()
+    } else {
+        emptyMap()
+    }
 
-data class ComplexProblem(
-    val first: Int,
-    val second: Int,
-    val firstOperation: Operation,
-    val third: Int,
-    val secondOperation: Operation,
-    override val result: Int,
-) : Problem {
-    override val text: String = "$first ${firstOperation.value} $second ${secondOperation.value} $third = "
-}
-
-enum class Operation(val value: String) {
-    Addition("+"),
-    Subtraction("-"),
-    Multiplication("x"),
-}
-
-object ProblemGenerator {
-
-    fun generateSimpleProblem(): SimpleProblem {
+    override fun generate(): Problem {
         val operation = Operation.values().random()
 
         val first = if (operation != Operation.Subtraction) {
@@ -66,10 +130,22 @@ object ProblemGenerator {
             second = second,
             result = result,
             operation = operation,
+            operationEnconding = operationEncoding,
         )
     }
+}
 
-    fun generateComplexProblem(): ComplexProblem {
+class ComplexProblemGenerator(
+    isOperatorsEncoded: Boolean,
+) : ProblemGenerator {
+
+    private val operationEncoding = if (isOperatorsEncoded) {
+        Operation.values().zip(operationEncondings.shuffled()).toMap()
+    } else {
+        emptyMap()
+    }
+
+    override fun generate(): Problem {
         val operations = Operation.values().filter { it != Operation.Multiplication }
         val firstOperation = operations.random()
         val secondOperation = operations.random()
@@ -90,9 +166,51 @@ object ProblemGenerator {
                     third = third,
                     firstOperation = firstOperation,
                     secondOperation = secondOperation,
-                    result = result
+                    result = result,
+                    operationEnconding = operationEncoding,
                 )
             }
         }
     }
+}
+
+enum class TrainingType {
+    Simple,
+    Infinite,
+    TimeAttack,
+}
+
+enum class ProblemComplexity {
+    Simple,
+    Complex,
+}
+
+data class SimpleProblem(
+    val first: Int,
+    val second: Int,
+    val operation: Operation,
+    override val operationEnconding: Map<Operation, String>,
+    override val result: Int,
+) : Problem {
+
+    override val text: String = "$first ${operationEnconding[operation] ?: operation.value} $second = "
+}
+
+data class ComplexProblem(
+    val first: Int,
+    val second: Int,
+    val firstOperation: Operation,
+    val third: Int,
+    val secondOperation: Operation,
+    override val operationEnconding: Map<Operation, String>,
+    override val result: Int,
+) : Problem {
+    override val text: String =
+        "$first ${operationEnconding[firstOperation] ?: firstOperation.value} $second ${operationEnconding[secondOperation] ?: secondOperation.value} $third = "
+}
+
+enum class Operation(val value: String) {
+    Addition("+"),
+    Subtraction("-"),
+    Multiplication("x"),
 }

@@ -1,42 +1,121 @@
 package com.krossovochkin.common
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.Button
-import androidx.compose.material.Text
+import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 
 @Composable
 fun App() {
-    var screen: ProblemType? by remember { mutableStateOf(null) }
+    var training: Training? by remember { mutableStateOf(null) }
+    var trainingResult: TrainingResult? by remember { mutableStateOf(null) }
 
-    when (screen) {
-        null -> SelectScreen { screen = it }
-        ProblemType.Simple -> ProblemScreen(ProblemGenerator::generateSimpleProblem) { screen = null }
-        ProblemType.Complex -> ProblemScreen(ProblemGenerator::generateComplexProblem) { screen = null }
+    if (trainingResult == null) {
+        if (training == null) {
+            SelectScreen { training = it }
+        } else {
+            ProblemScreen(training!!, { training = null }, {
+                training = null
+                trainingResult = it
+            })
+        }
+    } else {
+        FinishScreen(trainingResult!!) {
+            trainingResult = null
+        }
     }
 }
 
 @Composable
-private fun SelectScreen(onClick: (ProblemType) -> Unit) {
+private fun SelectScreen(onClick: (Training) -> Unit) {
+    var isOperatorsEncoded by remember { mutableStateOf(false) }
+
+    var isComplexityExpanded by remember { mutableStateOf(false) }
+    var complexity: ProblemComplexity by remember { mutableStateOf(ProblemComplexity.Simple) }
+
+    var isTrainingTypeExpanded by remember { mutableStateOf(false) }
+    var trainingType: TrainingType by remember { mutableStateOf(TrainingType.Simple) }
+    var simpleTrainingCount: Int by remember { mutableStateOf(10) }
     Column(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Button(onClick = { onClick(ProblemType.Simple) }) { Text("Simple") }
-        Button(onClick = { onClick(ProblemType.Complex) }) { Text("Complex") }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(isOperatorsEncoded, onCheckedChange = { isOperatorsEncoded = !isOperatorsEncoded })
+            Text("enable operator encoding", modifier = Modifier.clickable { isOperatorsEncoded = !isOperatorsEncoded })
+        }
+
+        Box(modifier = Modifier.padding(10.dp)) {
+            Text("Complexity: $complexity", modifier = Modifier.clickable { isComplexityExpanded = true })
+            DropdownMenu(isComplexityExpanded, { isComplexityExpanded = false }) {
+                DropdownMenuItem(onClick = {
+                    complexity = ProblemComplexity.Simple
+                    isComplexityExpanded = false
+                }) {
+                    Text("Simple")
+                }
+                DropdownMenuItem(onClick = {
+                    complexity = ProblemComplexity.Complex
+                    isComplexityExpanded = false
+                }) {
+                    Text("Complex")
+                }
+            }
+        }
+
+        Box(modifier = Modifier.padding(10.dp)) {
+            Text("Type: $trainingType", modifier = Modifier.clickable { isTrainingTypeExpanded = true })
+            DropdownMenu(isTrainingTypeExpanded, { isTrainingTypeExpanded = false }) {
+                DropdownMenuItem(onClick = {
+                    trainingType = TrainingType.Simple
+                    isTrainingTypeExpanded = false
+                }) {
+                    Text("Simple")
+                }
+                DropdownMenuItem(onClick = {
+                    trainingType = TrainingType.Infinite
+                    isTrainingTypeExpanded = false
+                }) {
+                    Text("Infinite")
+                }
+            }
+        }
+
+        if (trainingType == TrainingType.Simple) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Count: ")
+                TextField(simpleTrainingCount.toString(), onValueChange = { simpleTrainingCount = it.toInt() })
+            }
+        }
+
+        Spacer(Modifier.weight(1f))
+
+        Button(onClick = {
+            val generator = when (complexity) {
+                ProblemComplexity.Simple -> SimpleProblemGenerator(isOperatorsEncoded)
+                ProblemComplexity.Complex -> ComplexProblemGenerator(isOperatorsEncoded)
+            }
+            val training = when (trainingType) {
+                TrainingType.Simple -> SimpleTraining(generator, simpleTrainingCount)
+                TrainingType.Infinite -> InfiniteTraining(generator)
+                TrainingType.TimeAttack -> InfiniteTraining(generator) // TODO: add support
+            }
+            onClick(training)
+        }) { Text("Start") }
     }
 }
 
 @Composable
-private fun ProblemScreen(generate: () -> Problem, onBack: () -> Unit) {
-    var problem by remember { mutableStateOf(generate()) }
+private fun ProblemScreen(training: Training, onBack: () -> Unit, onComplete: (TrainingResult) -> Unit) {
+    var problem by remember { mutableStateOf(training.nextProblem!!) }
     var input by remember { mutableStateOf("") }
     var inputColor by remember { mutableStateOf(Color.Black) }
 
@@ -44,9 +123,15 @@ private fun ProblemScreen(generate: () -> Problem, onBack: () -> Unit) {
         if (input.toIntOrNull() == problem.result) {
             inputColor = Color.Green
             delay(300L)
-            problem = generate()
-            input = ""
-            inputColor = Color.Black
+
+            val nextProblem = training.nextProblem
+            if (nextProblem != null) {
+                problem = nextProblem
+                input = ""
+                inputColor = Color.Black
+            } else {
+                onComplete(training.trainingResult)
+            }
         }
     }
 
@@ -57,9 +142,26 @@ private fun ProblemScreen(generate: () -> Problem, onBack: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.height(120.dp))
 
-        Row {
-            Text("${problem.text}", fontSize = 24.sp)
-            Text(input, color = inputColor, fontSize = 24.sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(problem.text, fontSize = 24.sp, fontFamily = FontFamily.Monospace)
+            Text(input, color = inputColor, fontSize = 24.sp, fontFamily = FontFamily.Monospace)
+        }
+
+        Spacer(Modifier.height(10.dp))
+
+        if (problem.operationEnconding.isNotEmpty()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                problem.operationEnconding
+                    .filter {
+                        problem is SimpleProblem || it.key != Operation.Multiplication
+                    }
+                    .forEach { (operation, encoding) ->
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(5.dp)) {
+                            Text(operation.value, fontSize = 18.sp, fontFamily = FontFamily.Monospace)
+                            Text(encoding, fontSize = 18.sp, fontFamily = FontFamily.Monospace)
+                        }
+                    }
+            }
         }
 
         Spacer(Modifier.weight(1f))
@@ -93,6 +195,18 @@ private fun ProblemScreen(generate: () -> Problem, onBack: () -> Unit) {
                 onClick = { onBack() }
             ) { Text("close") }
         }
+    }
+}
+
+@Composable
+private fun FinishScreen(trainingResult: TrainingResult, onFinish: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("Finished: ${trainingResult.result}")
+        Button(onClick = { onFinish() }) { Text("Finish") }
     }
 }
 
