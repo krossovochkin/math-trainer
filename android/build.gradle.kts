@@ -31,10 +31,12 @@ android {
     }
     signingConfigs {
         create("release") {
-            keyAlias = ""
-            keyPassword = ""
-            storeFile = file("../keystore.jks")
-            storePassword = ""
+            keyAlias = System.getenv()["RELEASE_KEY_ALIAS"]
+            keyPassword = System.getenv()["RELEASE_KEY_PASSWORD"]
+            storeFile = file("$rootDir/release-keystore-math-trainer.jks")
+            storePassword = System.getenv()["RELEASE_STORE_PASSWORD"]
+            enableV1Signing = true
+            enableV2Signing = true
         }
     }
     buildTypes {
