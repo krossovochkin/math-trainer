@@ -1,25 +1,15 @@
 package com.krossovochkin.common
 
-import androidx.compose.material.Text
-import androidx.compose.material.Button
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.graphics.Color
-import kotlinx.coroutines.delay
-import androidx.compose.ui.Modifier
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.Alignment
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.material.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.ui.*
-import androidx.compose.ui.unit.*
+import androidx.compose.material.Button
+import androidx.compose.material.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 
 @Composable
 fun App() {
@@ -34,7 +24,11 @@ fun App() {
 
 @Composable
 private fun SelectScreen(onClick: (ProblemType) -> Unit) {
-    Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
         Button(onClick = { onClick(ProblemType.Simple) }) { Text("Simple") }
         Button(onClick = { onClick(ProblemType.Complex) }) { Text("Complex") }
     }
@@ -44,7 +38,7 @@ private fun SelectScreen(onClick: (ProblemType) -> Unit) {
 private fun ProblemScreen(generate: () -> Problem, onBack: () -> Unit) {
     var problem by remember { mutableStateOf(generate()) }
     var input by remember { mutableStateOf("") }
-    var inputColor by remember { mutableStateOf(Color.Black)}
+    var inputColor by remember { mutableStateOf(Color.Black) }
 
     LaunchedEffect(input) {
         if (input.toIntOrNull() == problem.result) {
