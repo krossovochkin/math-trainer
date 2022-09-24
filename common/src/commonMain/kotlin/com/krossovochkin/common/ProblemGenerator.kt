@@ -39,6 +39,9 @@ interface TrainingResult {
 
 interface Training {
     val nextProblem: Problem?
+
+    fun answer(value: Int)
+
     val trainingResult: TrainingResult
 }
 
@@ -49,9 +52,34 @@ class InfiniteTraining(
     override val nextProblem: Problem
         get() = generator.generate()
 
+    override fun answer(value: Int) {
+        // do nothing
+    }
+
     override val trainingResult: TrainingResult
         get() = object : TrainingResult {
             override val result: String = ""
+        }
+}
+
+class TimeTraining(
+    private val generator: ProblemGenerator,
+    val timeMillis: Long,
+    val timeIncrementMillis: Long,
+) : Training {
+
+    private var solvedProblems = -1
+
+    override val nextProblem: Problem
+        get() = generator.generate().also { solvedProblems++ }
+
+    override fun answer(value: Int) {
+        // do nothing
+    }
+
+    override val trainingResult: TrainingResult
+        get() = object : TrainingResult {
+            override val result: String = "Solved problems: $solvedProblems"
         }
 }
 
@@ -63,6 +91,9 @@ class SimpleTraining(
     private var currentCount: Int = 0
     private val startTimestamp = System.currentTimeMillis()
 
+    private var currentProblem: Problem? = null
+    private val results = mutableListOf<Pair<Problem, Int>>()
+
     override val nextProblem: Problem?
         get() {
             currentCount++
@@ -70,8 +101,15 @@ class SimpleTraining(
                 generator.generate()
             } else {
                 null
-            }
+            }.also { currentProblem = it }
         }
+
+    override fun answer(value: Int) {
+        val currentProblem = currentProblem
+        if (currentProblem != null) {
+            results += currentProblem to value
+        }
+    }
 
     override val trainingResult: TrainingResult
         get() {
@@ -79,7 +117,15 @@ class SimpleTraining(
                 override val result: String
                     get() {
                         val timeSeconds = (System.currentTimeMillis() - startTimestamp) / 1000
-                        return "Solved in ${timeSeconds}s"
+                        return buildString {
+                            append("Solved in ${timeSeconds}s")
+                            append("\n")
+                            results.forEach { (problem, answer) ->
+                                append("${problem.text} ${answer.toString().padEnd(2, ' ')} ")
+                                append(if (problem.result == answer) "✔️" else "❌")
+                                append("\n")
+                            }
+                        } 
                     }
             }
         }
@@ -137,6 +183,7 @@ class SimpleProblemGenerator(
 
 class ComplexProblemGenerator(
     isOperatorsEncoded: Boolean,
+    private val isDuplicateOperatorsAllowed: Boolean,
 ) : ProblemGenerator {
 
     private val operationEncoding = if (isOperatorsEncoded) {
@@ -148,7 +195,11 @@ class ComplexProblemGenerator(
     override fun generate(): Problem {
         val operations = Operation.values().filter { it != Operation.Multiplication }
         val firstOperation = operations.random()
-        val secondOperation = operations.random()
+        val secondOperation = if (isDuplicateOperatorsAllowed) {
+            operations.random()
+        } else {
+            operations.filter { it != firstOperation }.random()
+        }
 
         while (true) {
             val first = Random.nextInt(1..9)
